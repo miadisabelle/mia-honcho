@@ -83,6 +83,30 @@ a host gateway that makes the plain URL work anyway — which matters because
 Node's `fetch`/undici ignores `ALL_PROXY`, so MCP clients cannot be fixed with a
 proxy variable alone.
 
+## Why this matters beyond plumbing
+
+While Honcho was bound to `127.0.0.1:8133`, the cognitive system it supports had a
+hard edge at one machine's loopback interface. Publishing it under a network name
+moves that edge out to the boundary of the tailnet: agents on different hosts now
+address the same peers, the same sessions, and the same accumulated
+representations.
+
+That is the distributed-cognition claim, and it is not decorative. Hutchins (1995)
+and Clark & Chalmers (1998) argue that external structures playing the right
+functional role are genuine parts of a cognitive system rather than records of it —
+the criterion being whether the artifact is *queried* rather than merely read.
+Honcho's dialectic endpoint (`/peers/{id}/chat` — ask *about* a peer, get an answer
+synthesized from accumulated memory) meets that criterion exactly.
+
+Written up as **Field 6** of a foundation kept in the `jgwill/gaia` repository:
+
+- `foundations/presence-without-routing/README.md` — the plain-language version
+- `foundations/presence-without-routing/academic-fields.md` — six fields, with citations
+
+Open question recorded there and unanswered here: Honcho is now reachable
+network-wide, but *what* agents should write into shared memory — and who may read
+it — is entirely unstudied.
+
 ---
 
 🌸 Honcho stopped being a port on one machine and became a name the whole
