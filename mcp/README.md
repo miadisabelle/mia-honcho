@@ -68,9 +68,23 @@ Built on:
 
 ## Self-Hosted Honcho
 
-If you run Honcho yourself (for privacy, latency, or offline use), deploy the
-MCP Worker alongside your instance and set `HONCHO_API_URL` in its
-environment.
+> ⚠ **This Worker cannot talk to a `/v3` server.** It depends on
+> `@honcho-ai/sdk`, which calls **`/v2`** — as does `@honcho-ai/mcp` (npm latest
+> **2.2.0**) and `@honcho-ai/core` **2.2.0**. Honcho **3.x** serves `/v3` only:
+> `POST /v2/workspaces/list` → **404**, `/v3/workspaces/list` → **200**. Setting
+> `HONCHO_API_URL` moves the host and still 404s — it is a missing SDK, not a
+> missing variable. No `/v3` MCP is published anywhere at time of writing.
+>
+> For a 3.x instance use **[`../mcp-v3/`](../mcp-v3/)** in this repository: a
+> small Python MCP server written directly against the `/v3` OpenAPI document,
+> with bearer auth, deployed as a container alongside the API. See
+> [`../TAILNET.md`](../TAILNET.md).
+>
+> Also worth knowing before reaching for `@honcho-ai/mcp`: it is Stainless Code
+> Mode and requires **deno**.
+
+If you run Honcho **2.x**, deploy the MCP Worker alongside your instance and set
+`HONCHO_API_URL` in its environment.
 
 **Local dev (`bun run dev`):** create `mcp/.dev.vars`:
 

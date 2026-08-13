@@ -48,6 +48,48 @@ curl https://honcho.<tailnet>.ts.net/health      # {"status":"ok"}
 Override the name with `TS_HOSTNAME` in `.env` if `honcho` is taken on your
 tailnet.
 
+## MCP — `https://honcho.<tailnet>.ts.net/mcp`
+
+The same door carries both surfaces: `/` proxies the REST API, `/mcp` proxies
+[`mcp-v3/`](mcp-v3/) — an MCP server written against `/v3`, because every
+published Honcho MCP calls `/v2` and 404s against a 3.x instance.
+
+Unlike the REST surface, **MCP requires a bearer token**, checked inside the
+server rather than at the proxy, so the requirement survives the tailnet
+crossing. `HONCHO_MCP_BEARER_TOKEN` in `.env` (`uuidgen`); the server refuses to
+start without it.
+
+```json
+{ "mcpServers": { "honcho": {
+    "type": "http",
+    "url": "https://honcho.tail3b11eb.ts.net/mcp",
+    "headers": { "Authorization": "Bearer ${HONCHO_MCP_BEARER_TOKEN}" } } } }
+```
+
+Tools: `list_workspaces`, `search`, `chat` (the dialectic endpoint),
+`get_peer_context`, `get_representation`, `list_peers`, `list_sessions`,
+`get_session_context`, `get_session_messages`, `honcho_health`.
+
+Since `docker-compose.yml` is gitignored, the durable record of the service:
+
+```yaml
+  mcp-v3:
+    build: { context: ./mcp-v3 }
+    container_name: mia-honcho-mcp-v3
+    environment:
+      HONCHO_API_URL: http://api:8000
+      HONCHO_WORKSPACE_ID: ${HONCHO_WORKSPACE_ID:-default}
+      HONCHO_MCP_BEARER_TOKEN: ${HONCHO_MCP_BEARER_TOKEN:?generate one (uuidgen)}
+      MCP_PORT: "8081"
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-honcho.tail3b11eb.ts.net,mcp-v3:8081,127.0.0.1:8081,localhost:8081}
+    depends_on: { api: { condition: service_healthy } }
+    restart: unless-stopped
+```
+
+`MCP_ALLOWED_HOSTS` is not optional: the SDK's DNS-rebinding guard answers
+**`421 Invalid Host header`** to a proxied `Host`, after auth passes. List the
+names the proxy presents rather than disabling the protection.
+
 ## Operational notes
 
 - **`TS_USERSPACE: "true"`** — no TUN, no `NET_ADMIN`, no network interface
