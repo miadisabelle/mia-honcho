@@ -9,6 +9,9 @@
       "Handlers": {
         "/": {
           "Proxy": "http://api:8000"
+        },
+        "/mcp": {
+          "Proxy": "http://mcp-v3:8081/mcp"
         }
       }
     }
