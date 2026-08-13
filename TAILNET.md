@@ -61,6 +61,14 @@ tailnet.
   automatically; nothing to configure or rotate here.
 - **Exposure is tailnet-only.** No Funnel, so this is not on the public
   internet. Reachability is whatever your tailnet ACLs allow.
+- **⚠ Publishing this invalidated an assumption elsewhere.** `deploy/eury.md`
+  justified `AUTH_USE_AUTH=false` with "the API is loopback-bound." That stopped
+  being true the moment this sidecar came up: every `/v3` endpoint is now open,
+  read and write, to anything on the tailnet, with no credential. Verified
+  unauthenticated from another machine. The correction and the options are in
+  `deploy/eury.md` → *Exposure*. **Publishing a service re-opens every security
+  decision that was justified by it being unreachable** — check for those before
+  adding a sidecar to anything.
 
 ## Reproducing on another project
 
