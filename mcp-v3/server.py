@@ -137,12 +137,32 @@ def get_peer_context(
 
 
 @mcp.tool()
-def get_representation(peer_id: str, workspace_id: str = "", target: str = "") -> dict:
-    """The model Honcho has built of a peer — inspectable, not a summary."""
-    params = {"target": target} if target else None
+def get_representation(
+    peer_id: str,
+    workspace_id: str = "",
+    target: str = "",
+    session_id: str = "",
+    search_query: str = "",
+    max_conclusions: int = 0,
+) -> dict:
+    """The model Honcho has built of a peer — inspectable, not a summary.
+
+    POST with a body, unlike the neighbouring `context` endpoint which is a GET
+    with query parameters. This was a GET here until it 405'd in real use: the
+    shape was inferred from `context` instead of read from the OpenAPI document.
+    """
+    body: dict = {}
+    if target:
+        body["target"] = target
+    if session_id:
+        body["session_id"] = session_id
+    if search_query:
+        body["search_query"] = search_query
+    if max_conclusions:
+        body["max_conclusions"] = max_conclusions
     return _call(
-        "GET", f"/v3/workspaces/{_ws(workspace_id)}/peers/{peer_id}/representation",
-        params=params,
+        "POST", f"/v3/workspaces/{_ws(workspace_id)}/peers/{peer_id}/representation",
+        json=body,
     )
 
 
@@ -191,6 +211,161 @@ def get_session_messages(session_id: str, workspace_id: str = "", page: int = 1,
         "POST", f"/v3/workspaces/{_ws(workspace_id)}/sessions/{session_id}/messages/list",
         params={"page": page, "size": size},
     )
+
+
+# ---------------------------------------------------------------------------
+# Writes.
+#
+# These mutate shared memory that more than one agent reads. They live on this
+# surface — behind the bearer — precisely so nobody has to reach for the REST
+# API at `/`, which is currently open to the whole tailnet with no credential.
+# An authenticated write path existing is what makes declining the unauthenticated
+# one a real choice rather than an inconvenience.
+#
+# HONCHO_MCP_ALLOW_WRITES=false turns them into refusals without removing them,
+# so a read-only deployment is one variable and the tool list stays honest about
+# what the surface would otherwise do.
+# ---------------------------------------------------------------------------
+
+ALLOW_WRITES = os.environ.get("HONCHO_MCP_ALLOW_WRITES", "true").strip().lower() not in (
+    "0", "false", "no", "off",
+)
+
+
+def _guard() -> dict | None:
+    if ALLOW_WRITES:
+        return None
+    return {"error": "writes are disabled on this server (HONCHO_MCP_ALLOW_WRITES=false)"}
+
+
+@mcp.tool()
+def create_workspace(workspace_id: str, metadata: dict | None = None) -> dict:
+    """Create a workspace. Idempotent in Honcho: an existing id is returned, not an error."""
+    return _guard() or _call(
+        "POST", "/v3/workspaces",
+        json={"id": workspace_id, "metadata": metadata or {}},
+    )
+
+
+@mcp.tool()
+def create_peer(peer_id: str, workspace_id: str = "", metadata: dict | None = None) -> dict:
+    """Create a peer (an agent or a human) in a workspace."""
+    return _guard() or _call(
+        "POST", f"/v3/workspaces/{_ws(workspace_id)}/peers",
+        json={"id": peer_id, "metadata": metadata or {}},
+    )
+
+
+@mcp.tool()
+def set_peer_card(peer_id: str, peer_card: list[str], workspace_id: str = "") -> dict:
+    """Set a peer's card — the standing self-description Honcho keeps for them."""
+    return _guard() or _call(
+        "PUT", f"/v3/workspaces/{_ws(workspace_id)}/peers/{peer_id}/card",
+        json={"peer_card": peer_card},
+    )
+
+
+@mcp.tool()
+def create_session(
+    session_id: str,
+    workspace_id: str = "",
+    peers: dict | None = None,
+    metadata: dict | None = None,
+) -> dict:
+    """Create a session and optionally seat peers in it.
+
+    `peers` maps peer_id -> {"observe_me": bool, "observe_others": bool}. Setting
+    observe_me here is the cheapest way to get it right, because it is a
+    *session-scoped* property (see set_session_peer_config).
+    """
+    body: dict = {"id": session_id, "metadata": metadata or {}}
+    if peers:
+        body["peers"] = peers
+    return _guard() or _call("POST", f"/v3/workspaces/{_ws(workspace_id)}/sessions", json=body)
+
+
+@mcp.tool()
+def add_peers_to_session(session_id: str, peers: dict, workspace_id: str = "") -> dict:
+    """Seat additional peers in an existing session.
+
+    `peers` maps peer_id -> {"observe_me": bool, "observe_others": bool}.
+    """
+    return _guard() or _call(
+        "POST", f"/v3/workspaces/{_ws(workspace_id)}/sessions/{session_id}/peers",
+        json=peers,
+    )
+
+
+@mcp.tool()
+def set_session_peer_config(
+    session_id: str,
+    peer_id: str,
+    workspace_id: str = "",
+    observe_me: bool | None = None,
+    observe_others: bool | None = None,
+) -> dict:
+    """Turn observation on or off for one peer in one session.
+
+    `observe_me` is **session-scoped**: it exists only on SessionPeerConfig, not
+    on the peer itself. There is no global "observe this peer everywhere" switch
+    — it is set per session, here or at create_session time. A peer with
+    observe_me false accrues no representation, which is why one reads as "".
+    """
+    body: dict = {}
+    if observe_me is not None:
+        body["observe_me"] = observe_me
+    if observe_others is not None:
+        body["observe_others"] = observe_others
+    if not body:
+        return {"error": "nothing to set: pass observe_me and/or observe_others"}
+    return _guard() or _call(
+        "PUT",
+        f"/v3/workspaces/{_ws(workspace_id)}/sessions/{session_id}/peers/{peer_id}/config",
+        json=body,
+    )
+
+
+@mcp.tool()
+def add_messages_to_session(
+    session_id: str,
+    messages: list[dict],
+    workspace_id: str = "",
+) -> dict:
+    """Append messages to a session. This is what the deriver learns from.
+
+    Each message is {"content": str, "peer_id": str, "metadata": dict?}.
+    Honcho accepts 1–100 per call.
+    """
+    if not messages:
+        return {"error": "messages is empty"}
+    if len(messages) > 100:
+        return {"error": f"honcho accepts at most 100 messages per call, got {len(messages)}"}
+    return _guard() or _call(
+        "POST", f"/v3/workspaces/{_ws(workspace_id)}/sessions/{session_id}/messages",
+        json={"messages": messages},
+    )
+
+
+@mcp.tool()
+def set_metadata(
+    metadata: dict,
+    workspace_id: str = "",
+    peer_id: str = "",
+    session_id: str = "",
+) -> dict:
+    """Set metadata on a workspace, a peer, or a session.
+
+    Scope is chosen by which id is supplied: peer_id wins, then session_id, then
+    the workspace itself. Honcho replaces the metadata object rather than merging.
+    """
+    ws = _ws(workspace_id)
+    if peer_id:
+        path = f"/v3/workspaces/{ws}/peers/{peer_id}"
+    elif session_id:
+        path = f"/v3/workspaces/{ws}/sessions/{session_id}"
+    else:
+        path = f"/v3/workspaces/{ws}"
+    return _guard() or _call("PUT", path, json={"metadata": metadata})
 
 
 @mcp.tool()

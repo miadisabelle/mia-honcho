@@ -66,9 +66,26 @@ start without it.
     "headers": { "Authorization": "Bearer ${HONCHO_MCP_BEARER_TOKEN}" } } } }
 ```
 
-Tools: `list_workspaces`, `search`, `chat` (the dialectic endpoint),
+**Read (9):** `list_workspaces`, `search`, `chat` (the dialectic endpoint),
 `get_peer_context`, `get_representation`, `list_peers`, `list_sessions`,
-`get_session_context`, `get_session_messages`, `honcho_health`.
+`get_session_context`, `get_session_messages`, plus `honcho_health`.
+
+**Write (8):** `create_workspace`, `create_peer`, `set_peer_card`,
+`create_session`, `add_peers_to_session`, `set_session_peer_config`,
+`add_messages_to_session`, `set_metadata`.
+
+Writes sit behind the same bearer on purpose. The REST surface at `/` is open to
+the whole tailnet with no credential, so without an authenticated write path the
+only way to mutate memory is through the unauthenticated one — which would make a
+mess of the boundary this door exists to draw. `HONCHO_MCP_ALLOW_WRITES=false`
+turns them into refusals without hiding them, so a read-only deployment is one
+variable.
+
+`observe_me` is **session-scoped** — it lives only on `SessionPeerConfig`, never
+on the peer. There is no global "observe this peer everywhere" switch; set it per
+session via `set_session_peer_config`, or at `create_session` time in `peers`. A
+peer with `observe_me` false accrues no representation, which is why one reads
+empty.
 
 Since `docker-compose.yml` is gitignored, the durable record of the service:
 
