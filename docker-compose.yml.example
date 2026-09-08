@@ -11,6 +11,9 @@
 
 services:
   api:
+    # Ceiling: FastAPI workers. Observed ~55 MiB idle.
+    mem_limit: 2g
+    mem_reservation: 256m
     build:
       context: .
       dockerfile: Dockerfile
@@ -23,7 +26,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8133:8000"  # standing rule (jgwill): local honcho must NOT occupy host :8000
     healthcheck:
       test:
         [
@@ -52,6 +55,9 @@ services:
     restart: unless-stopped
 
   deriver:
+    # Ceiling: batch derivation + embeddings, the widest swing here.
+    mem_limit: 4g
+    mem_reservation: 512m
     build:
       context: .
       dockerfile: Dockerfile
@@ -81,6 +87,9 @@ services:
     restart: unless-stopped
 
   database:
+    # Ceiling: pgvector with max_connections=200. Do not tighten below shared_buffers + work_mem headroom.
+    mem_limit: 4g
+    mem_reservation: 512m
     image: pgvector/pgvector:pg15
     restart: unless-stopped
     ports:
@@ -105,6 +114,9 @@ services:
       retries: 5
 
   redis:
+    # Ceiling: cache/queue only, no RDB of size. Observed ~3 MiB.
+    mem_limit: 1g
+    mem_reservation: 64m
     image: redis:8.2
     restart: unless-stopped
     ports:

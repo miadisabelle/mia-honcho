@@ -1,0 +1,180 @@
+# Honcho on a tailnet
+
+This deployment publishes itself at **`https://honcho.<tailnet>.ts.net`** through
+a Tailscale sidecar in its own `docker-compose.yml`. No external gateway, no
+reverse proxy, no published host port required.
+
+Established on `eury`, 2026-08-13 (branch `deploy/eury-8133`).
+
+## What was added
+
+| File | Tracked? | Role |
+|---|---|---|
+| `docker-compose.yml` → `tailscale` service + `tailscale-state` volume | gitignored | the sidecar |
+| `docker/tailscale-serve.json` | **tracked** | proxies `:443` → `http://api:8000` |
+| `.env` → `TS_AUTHKEY` | gitignored | this node's identity |
+
+The sidecar sits on Honcho's ordinary compose network and reaches the API as
+`http://api:8000`. The `127.0.0.1:8133` publish stays as it is for local use, but
+nothing on the tailnet depends on it.
+
+## Why a node name, not a Tailscale Service
+
+`honcho.<tailnet>.ts.net` here is a **node name**. It resolves as soon as the
+container registers.
+
+A Tailscale Service (`svc:honcho`) would need a console definition, a host
+enrollment, an admin approval, and a VIP binding — and stays silently
+unreachable until all four land. That path was attempted first and never
+resolved; the node name worked immediately. Use `svc:*` only for genuine
+multi-host fronting or failover.
+
+## Bringing it up
+
+```bash
+# 1. Mint an auth key on the tailnet this Honcho should join:
+#    https://login.tailscale.com/admin/settings/keys
+#    Keys are single-use by default — this node needs its own.
+echo 'TS_AUTHKEY=tskey-auth-…' >> .env
+
+# 2. Start it
+docker compose up -d tailscale
+
+# 3. Verify
+docker compose exec tailscale tailscale status
+curl https://honcho.<tailnet>.ts.net/health      # {"status":"ok"}
+```
+
+Override the name with `TS_HOSTNAME` in `.env` if `honcho` is taken on your
+tailnet.
+
+## MCP — `https://honcho.<tailnet>.ts.net/mcp`
+
+The same door carries both surfaces: `/` proxies the REST API, `/mcp` proxies
+[`mcp-v3/`](mcp-v3/) — an MCP server written against `/v3`, because every
+published Honcho MCP calls `/v2` and 404s against a 3.x instance.
+
+Unlike the REST surface, **MCP requires a bearer token**, checked inside the
+server rather than at the proxy, so the requirement survives the tailnet
+crossing. `HONCHO_MCP_BEARER_TOKEN` in `.env` (`uuidgen`); the server refuses to
+start without it.
+
+```json
+{ "mcpServers": { "honcho": {
+    "type": "http",
+    "url": "https://honcho.tail3b11eb.ts.net/mcp",
+    "headers": { "Authorization": "Bearer ${HONCHO_MCP_BEARER_TOKEN}" } } } }
+```
+
+**Read (9):** `list_workspaces`, `search`, `chat` (the dialectic endpoint),
+`get_peer_context`, `get_representation`, `list_peers`, `list_sessions`,
+`get_session_context`, `get_session_messages`, plus `honcho_health`.
+
+**Write (8):** `create_workspace`, `create_peer`, `set_peer_card`,
+`create_session`, `add_peers_to_session`, `set_session_peer_config`,
+`add_messages_to_session`, `set_metadata`.
+
+Writes sit behind the same bearer on purpose. The REST surface at `/` is open to
+the whole tailnet with no credential, so without an authenticated write path the
+only way to mutate memory is through the unauthenticated one — which would make a
+mess of the boundary this door exists to draw. `HONCHO_MCP_ALLOW_WRITES=false`
+turns them into refusals without hiding them, so a read-only deployment is one
+variable.
+
+`observe_me` is **session-scoped** — it lives only on `SessionPeerConfig`, never
+on the peer. There is no global "observe this peer everywhere" switch; set it per
+session via `set_session_peer_config`, or at `create_session` time in `peers`. A
+peer with `observe_me` false accrues no representation, which is why one reads
+empty.
+
+Since `docker-compose.yml` is gitignored, the durable record of the service:
+
+```yaml
+  mcp-v3:
+    build: { context: ./mcp-v3 }
+    container_name: mia-honcho-mcp-v3
+    environment:
+      HONCHO_API_URL: http://api:8000
+      HONCHO_WORKSPACE_ID: ${HONCHO_WORKSPACE_ID:-default}
+      HONCHO_MCP_BEARER_TOKEN: ${HONCHO_MCP_BEARER_TOKEN:?generate one (uuidgen)}
+      MCP_PORT: "8081"
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-honcho.tail3b11eb.ts.net,mcp-v3:8081,127.0.0.1:8081,localhost:8081}
+    depends_on: { api: { condition: service_healthy } }
+    restart: unless-stopped
+```
+
+`MCP_ALLOWED_HOSTS` is not optional: the SDK's DNS-rebinding guard answers
+**`421 Invalid Host header`** to a proxied `Host`, after auth passes. List the
+names the proxy presents rather than disabling the protection.
+
+## Operational notes
+
+- **`TS_USERSPACE: "true"`** — no TUN, no `NET_ADMIN`, no network interface
+  created. This is what lets the sidecar run on a host whose own `tailscaled` is
+  already joined to a *different* tailnet, without the two colliding. That is
+  the case on `eury` and it is the reason this pattern was chosen.
+- **`TS_ACCEPT_DNS: "false"`** — the sidecar must never rewrite host DNS.
+- **The `tailscale-state` volume is the node's identity.** Delete it and this
+  Honcho comes back as a brand-new node, losing its name and its ACL standing.
+- **TLS is Tailscale's.** Certificates for `*.ts.net` are issued and renewed
+  automatically; nothing to configure or rotate here.
+- **Exposure is tailnet-only.** No Funnel, so this is not on the public
+  internet. Reachability is whatever your tailnet ACLs allow.
+- **⚠ Publishing this invalidated an assumption elsewhere.** `deploy/eury.md`
+  justified `AUTH_USE_AUTH=false` with "the API is loopback-bound." That stopped
+  being true the moment this sidecar came up: every `/v3` endpoint is now open,
+  read and write, to anything on the tailnet, with no credential. Verified
+  unauthenticated from another machine. The correction and the options are in
+  `deploy/eury.md` → *Exposure*. **Publishing a service re-opens every security
+  decision that was justified by it being unreachable** — check for those before
+  adding a sidecar to anything.
+
+## Reproducing on another project
+
+A generic version of this sidecar lives at
+`/opt/gaia/linux_migration/24-tailnet-sidecar.sh`:
+
+```bash
+./24-tailnet-sidecar.sh init <project-dir> <node-name> http://<service>:<port>
+./24-tailnet-sidecar.sh up <project-dir>
+```
+
+It writes a `docker-compose.tailnet.yml` override rather than editing the
+project's compose file — the same shape as what is inlined here.
+
+## Reaching it from a host on another tailnet
+
+A machine that is not on this tailnet cannot resolve or route to
+`honcho.<tailnet>.ts.net` at all. `/opt/gaia/tailnet-gateway/RECIPE.md` documents
+a host gateway that makes the plain URL work anyway — which matters because
+Node's `fetch`/undici ignores `ALL_PROXY`, so MCP clients cannot be fixed with a
+proxy variable alone.
+
+## Why this matters beyond plumbing
+
+While Honcho was bound to `127.0.0.1:8133`, the cognitive system it supports had a
+hard edge at one machine's loopback interface. Publishing it under a network name
+moves that edge out to the boundary of the tailnet: agents on different hosts now
+address the same peers, the same sessions, and the same accumulated
+representations.
+
+That is the distributed-cognition claim, and it is not decorative. Hutchins (1995)
+and Clark & Chalmers (1998) argue that external structures playing the right
+functional role are genuine parts of a cognitive system rather than records of it —
+the criterion being whether the artifact is *queried* rather than merely read.
+Honcho's dialectic endpoint (`/peers/{id}/chat` — ask *about* a peer, get an answer
+synthesized from accumulated memory) meets that criterion exactly.
+
+Written up as **Field 6** of a foundation kept in the `jgwill/gaia` repository:
+
+- `foundations/presence-without-routing/README.md` — the plain-language version
+- `foundations/presence-without-routing/academic-fields.md` — six fields, with citations
+
+Open question recorded there and unanswered here: Honcho is now reachable
+network-wide, but *what* agents should write into shared memory — and who may read
+it — is entirely unstudied.
+
+---
+
+🌸 Honcho stopped being a port on one machine and became a name the whole
+network knows.

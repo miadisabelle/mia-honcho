@@ -1,0 +1,38 @@
+{
+  "host": "eury",
+  "timestamp": "2026-07-18T21:35:54.033078+00:00",
+  "rule": "local honcho must NOT occupy host :8000 (standing, jgwill)",
+  "mapping": {
+    "api": "127.0.0.1:8133->8000",
+    "database": "127.0.0.1:5433->5432",
+    "redis": "127.0.0.1:6380->6379"
+  },
+  "env_deltas": [
+    "LLM_OPENAI_API_KEY=<set>",
+    "DERIVER_FLUSH_ENABLED=true (testing only)"
+  ],
+  "workspace": "miadi-dev",
+  "containers": [
+    {
+      "name": "mia-honcho-api-1",
+      "status": "Up 20 minutes (healthy)",
+      "ports": "127.0.0.1:8133->8000/tcp"
+    },
+    {
+      "name": "mia-honcho-database-1",
+      "status": "Up 13 hours (healthy)",
+      "ports": "127.0.0.1:5433->5432/tcp"
+    },
+    {
+      "name": "mia-honcho-deriver-1",
+      "status": "Up 20 minutes",
+      "ports": "8000/tcp"
+    },
+    {
+      "name": "mia-honcho-redis-1",
+      "status": "Up 13 hours (healthy)",
+      "ports": "127.0.0.1:6380->6379/tcp"
+    }
+  ],
+  "consumer": "jgwill/Miadi#502 worktree dev server :3345 (HONCHO_URL=http://localhost:8133)"
+}
