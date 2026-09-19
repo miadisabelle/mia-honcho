@@ -84,12 +84,12 @@ def list_workspaces(page: int = 1, size: int = 50) -> dict:
 
 
 @mcp.tool()
-def search(query: str, workspace_id: str = "", limit: int = 10) -> dict:
-    """Semantic search across a whole workspace."""
-    return _call(
-        "POST", f"/v3/workspaces/{_ws(workspace_id)}/search",
-        json={"query": query, "limit": limit},
-    )
+def search(query: str, workspace_id: str = "", limit: int = 10, filters: dict | None = None) -> dict:
+    """Semantic search across a whole workspace. `filters` narrows it, e.g. `{"metadata": {"wheel_kind": "beat"}}`."""
+    body: dict = {"query": query, "limit": limit}
+    if filters:
+        body["filters"] = filters
+    return _call("POST", f"/v3/workspaces/{_ws(workspace_id)}/search", json=body)
 
 
 @mcp.tool()
@@ -167,20 +167,41 @@ def get_representation(
 
 
 @mcp.tool()
-def list_peers(workspace_id: str = "", page: int = 1, size: int = 50) -> dict:
-    """List peers (agents and humans) in a workspace."""
+def list_peers(
+    workspace_id: str = "",
+    page: int = 1,
+    size: int = 50,
+    filters: dict | None = None,
+) -> dict:
+    """List peers (agents and humans) in a workspace.
+
+    `filters` is Honcho's filter body, e.g. `{"metadata": {"wheel_id": "node:human:…"}}`
+    — the way to find the peer a medicine-wheel node was projected onto, since
+    Honcho ids cannot carry the colons wheel ids do and the original travels in
+    metadata.
+    """
     return _call(
         "POST", f"/v3/workspaces/{_ws(workspace_id)}/peers/list",
         params={"page": page, "size": size},
+        json={"filters": filters} if filters else {},
     )
 
 
 @mcp.tool()
-def list_sessions(workspace_id: str = "", page: int = 1, size: int = 50) -> dict:
-    """List sessions (conversations between peers) in a workspace."""
+def list_sessions(
+    workspace_id: str = "",
+    page: int = 1,
+    size: int = 50,
+    filters: dict | None = None,
+) -> dict:
+    """List sessions (conversations between peers) in a workspace.
+
+    `filters` as in list_peers, e.g. `{"metadata": {"wheel_id": "ceremony:…"}}`.
+    """
     return _call(
         "POST", f"/v3/workspaces/{_ws(workspace_id)}/sessions/list",
         params={"page": page, "size": size},
+        json={"filters": filters} if filters else {},
     )
 
 
@@ -191,13 +212,21 @@ def get_session_context(
     tokens: int = 0,
     summary: bool = True,
     search_query: str = "",
+    peer_target: str = "",
 ) -> dict:
-    """Conversation context for a session, summarised to a token budget."""
+    """Conversation context for a session, summarised to a token budget.
+
+    Without `peer_target` this is session-local: recent turns plus the summary,
+    no cross-session memory. Name a peer and their representation and card are
+    folded in — that is the recall read to make before a peer speaks again.
+    """
     params: dict = {"summary": summary}
     if tokens:
         params["tokens"] = tokens
     if search_query:
         params["search_query"] = search_query
+    if peer_target:
+        params["peer_target"] = peer_target
     return _call(
         "GET", f"/v3/workspaces/{_ws(workspace_id)}/sessions/{session_id}/context",
         params=params,
