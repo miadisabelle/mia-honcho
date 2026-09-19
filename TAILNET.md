@@ -105,6 +105,17 @@ mapped (`node:human:1:gui` → `node-human-1-gui`) and the original travels as
 `metadata.wheel_id` on the peer, the session and every message — the `filters`
 above are how an agent walks back from a Honcho record to the wheel.
 
+The projection is automatic on the wheel's side: a wheel server started with
+`HONCHO_URL` set pushes every stored beat, ceremony and diary entry as it is
+written (`@medicine-wheel/honcho` README → *Putting it into production*). On
+this side nothing needs enabling — the deriver reasons over whatever lands.
+The `mcp-v3` container must be rebuilt to serve the new tool arguments:
+
+```bash
+docker compose up -d --build mcp-v3
+curl -s http://127.0.0.1:8081/health      # {"status":"ok",...}
+```
+
 Since `docker-compose.yml` is gitignored, the durable record of the service:
 
 ```yaml
