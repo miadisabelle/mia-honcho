@@ -69,6 +69,10 @@ start without it.
 **Read (9):** `list_workspaces`, `search`, `chat` (the dialectic endpoint),
 `get_peer_context`, `get_representation`, `list_peers`, `list_sessions`,
 `get_session_context`, `get_session_messages`, plus `honcho_health`.
+`list_peers`, `list_sessions` and `search` take Honcho's `filters` body
+(`{"metadata": {"wheel_id": "node:human:…"}}`), and `get_session_context` takes
+`peer_target` — without it the context is session-local and carries no
+cross-session memory.
 
 **Write (8):** `create_workspace`, `create_peer`, `set_peer_card`,
 `create_session`, `add_peers_to_session`, `set_session_peer_config`,
@@ -86,6 +90,31 @@ on the peer. There is no global "observe this peer everywhere" switch; set it pe
 session via `set_session_peer_config`, or at `create_session` time in `peers`. A
 peer with `observe_me` false accrues no representation, which is why one reads
 empty.
+
+## Medicine wheel
+
+`@medicine-wheel/honcho` (jgwill/medicine-wheel, `src/honcho`) projects a wheel
+into this instance: a beat becomes a message from its speaker in the session of
+its ceremony, a ceremony log a message from the peer `medicine-wheel`, and a
+derived conclusion returns to the wheel as a `knowledge` node with
+`metadata.kind: "memory_projection"`. It speaks `/v3` directly at `HONCHO_URL`
+(`http://localhost:8133` on eury, the tailnet name elsewhere), workspace
+`HONCHO_WORKSPACE_ID` (default `medicine-wheel`), no key while auth is off.
+Wheel ids carry colons, which `RESOURCE_NAME_PATTERN` refuses, so they are
+mapped (`node:human:1:gui` → `node-human-1-gui`) and the original travels as
+`metadata.wheel_id` on the peer, the session and every message — the `filters`
+above are how an agent walks back from a Honcho record to the wheel.
+
+The projection is automatic on the wheel's side: a wheel server started with
+`HONCHO_URL` set pushes every stored beat, ceremony and diary entry as it is
+written (`@medicine-wheel/honcho` README → *Putting it into production*). On
+this side nothing needs enabling — the deriver reasons over whatever lands.
+The `mcp-v3` container must be rebuilt to serve the new tool arguments:
+
+```bash
+docker compose up -d --build mcp-v3
+curl -s http://127.0.0.1:8081/health      # {"status":"ok",...}
+```
 
 Since `docker-compose.yml` is gitignored, the durable record of the service:
 

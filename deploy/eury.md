@@ -69,6 +69,10 @@ writable by anything on the tailnet.
   `HONCHO_URL=http://localhost:8133 HONCHO_WORKSPACE_ID=miadi-dev`.
 - Workspace `miadi-dev`: 11 bootstrapped persona/human peers plus the
   `chronicle-registry` session (miadi-chronicle episode census).
+- Medicine wheel projection (`@medicine-wheel/honcho`, MCP tools `honcho_*`):
+  `HONCHO_URL=http://localhost:8133 HONCHO_WORKSPACE_ID=medicine-wheel`. Its
+  peers and sessions carry `metadata.wheel_id`; see `../TAILNET.md` → *Medicine
+  wheel*.
 
 A machine-readable receipt of the live state at documentation time sits
 beside this note: `eury.receipt.json`.
