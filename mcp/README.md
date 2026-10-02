@@ -1,6 +1,6 @@
 # Honcho MCP Server
 
-A Cloudflare Worker that implements the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) for [Honcho](https://honcho.dev), providing AI memory and personalization tools to LLM clients like Claude Desktop.
+A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for [Honcho](https://honcho.dev). The hosted path is a Cloudflare Worker; the same tools also run over stdio and over Streamable HTTP (`bun src/http.ts`) for Docker and other long-lived process hosts.
 
 ## Quickstart: Use the Hosted Server
 
@@ -26,19 +26,17 @@ A Cloudflare Worker that implements the [Model Context Protocol (MCP)](https://m
 }
 ```
 
-### Optional Headers
-
-| Header | Default | Description |
-| --- | --- | --- |
-| `X-Honcho-Workspace-ID` | `"default"` | Workspace to operate in |
+Every workspace-scoped tool takes a `workspace_id` argument. If you set `X-Honcho-Workspace-ID` on the connection, that value fills `workspace_id` when the argument is omitted. Use `list_workspaces` to discover IDs.
 
 ## Available Tools
 
-**Workspace:** `inspect_workspace` (aggregates metadata, configuration, and peer/session IDs), `list_workspaces` (enumerates accessible workspaces), `search` (semantic search scoped by optional peer/session params), `get_metadata`, `set_metadata`
+**Workspace:** `list_workspaces` (id, metadata, created_at), `create_workspace` (get-or-create with optional metadata), `inspect_workspace` (aggregates metadata, configuration, and peer/session IDs), `search` (semantic search scoped by optional peer/session/scope params), `workspace_chat` (reasoned answer across all peers; optional session / scope recall bounds), `get_metadata`, `set_metadata`
 
-**Peers:** `create_peer`, `list_peers`, `chat`, `get_peer_card`, `set_peer_card`, `get_peer_context`, `get_representation`
+**Peers:** `create_peer`, `list_peers`, `chat` (reasoned answer about one peer; optional session / scope / sessions recall bounds), `get_peer_card`, `set_peer_card`, `get_peer_context`, `get_representation` (optional session / scope / sessions recall bounds)
 
-**Sessions:** `create_session`, `list_sessions`, `delete_session`, `clone_session`, `add_peers_to_session`, `remove_peers_from_session`, `get_session_peers`, `inspect_session`, `add_messages_to_session`, `get_session_messages`, `get_session_message`, `get_session_context`
+**Sessions:** `create_session` (optional `scopes` to join at creation), `list_sessions`, `delete_session`, `clone_session`, `add_peers_to_session`, `remove_peers_from_session`, `get_session_peers`, `inspect_session`, `add_messages_to_session`, `get_session_messages`, `get_session_message`, `get_session_context` (optional `peer_target` with `peer_perspective` / `scope` / `limit_to_session` to include a peer's representation and card)
+
+**Scopes:** `list_scopes`, `get_scope_sessions`, `create_scope` (get-or-create with optional metadata), `add_sessions_to_scope`, `remove_session_from_scope`, `get_scope_status` (backfill progress per session)
 
 **Conclusions:** `list_conclusions`, `query_conclusions`, `create_conclusions`, `delete_conclusion`
 
@@ -49,12 +47,15 @@ A Cloudflare Worker that implements the [Model Context Protocol (MCP)](https://m
 ```
 src/
   index.ts              # Worker entry point — parse config, delegate to MCP handler
+  stdio.ts              # Local stdio host (bun src/stdio.ts)
+  http.ts               # Streamable HTTP host (bun src/http.ts / Docker)
   server.ts             # createServer() — registers all tools on an McpServer
-  config.ts             # HonchoConfig, parseConfig(), createClient()
+  config.ts             # HonchoConfig, parseConfig(), Honcho clients + X-Honcho-* headers
   types.ts              # ToolContext, result helpers
   tools/
-    workspace.ts        # inspect, list, search, metadata
-    peers.ts            # CRUD, chat, card, context, representation
+    workspace.ts        # inspect, list, search, workspace_chat, metadata
+    peers.ts            # CRUD, chat (session / scope / sessions recall bounds), card, context, representation
+    scopes.ts           # list/create scopes, scope membership, backfill status
     sessions.ts         # CRUD, peers, messages, inspect, context, clone
     conclusions.ts      # list, query, create, delete
     system.ts           # dream, queue status
@@ -68,39 +69,88 @@ Built on:
 
 ## Self-Hosted Honcho
 
-> ⚠ **This Worker cannot talk to a `/v3` server.** It depends on
-> `@honcho-ai/sdk`, which calls **`/v2`** — as does `@honcho-ai/mcp` (npm latest
-> **2.2.0**) and `@honcho-ai/core` **2.2.0**. Honcho **3.x** serves `/v3` only:
-> `POST /v2/workspaces/list` → **404**, `/v3/workspaces/list` → **200**. Setting
-> `HONCHO_API_URL` moves the host and still 404s — it is a missing SDK, not a
-> missing variable. No `/v3` MCP is published anywhere at time of writing.
->
-> For a 3.x instance use **[`../mcp-v3/`](../mcp-v3/)** in this repository: a
-> small Python MCP server written directly against the `/v3` OpenAPI document,
-> with bearer auth, deployed as a container alongside the API. See
-> [`../TAILNET.md`](../TAILNET.md).
->
-> Also worth knowing before reaching for `@honcho-ai/mcp`: it is Stainless Code
-> Mode and requires **deno**.
+If you run Honcho yourself, point this server at it with `HONCHO_API_URL`.
+When unset, requests go to `https://api.honcho.dev`.
 
-If you run Honcho **2.x**, deploy the MCP Worker alongside your instance and set
-`HONCHO_API_URL` in its environment.
+> **This fork (eury):** the deployed MCP is **[`../mcp-v3/`](../mcp-v3/)**, a
+> small Python server written directly against the `/v3` OpenAPI document, with
+> bearer auth, deployed as a container alongside the API. See
+> [`../TAILNET.md`](../TAILNET.md). It was written when this Worker's
+> `@honcho-ai/sdk` (< 2.5) still called `/v2`. Since upstream 3.2.x the Worker
+> uses `@honcho-ai/sdk ^2.5.0`, which calls `/v3`.
+>
+> `@honcho-ai/mcp` on npm is Stainless Code Mode and requires **deno**.
 
-**Local dev (`bun run dev`):** create `mcp/.dev.vars`:
+`HONCHO_TIMEOUT_MS` caps each Honcho API request (default 300000, 5 minutes).
+Raise it if `chat` runs longer than that on your model. A reverse proxy in
+front of the HTTP host needs a read timeout at least this long.
+
+**Cloudflare Worker (`bun run dev` / `bun run deploy`):** create `mcp/.dev.vars`:
 
 ```
 HONCHO_API_URL=http://127.0.0.1:28000
 ```
 
-**Deployed Worker:**
+For a deployed Worker: `wrangler secret put HONCHO_API_URL`.
+
+## HTTP host
+
+For Docker or any platform that runs a long-lived process, use the Streamable
+HTTP entry instead of the Worker. Clients keep the same `mcp-remote` shape as
+`https://mcp.honcho.dev`. Sessions live in process memory — run one instance.
 
 ```bash
-wrangler secret put HONCHO_API_URL
-# paste your URL when prompted
+cd mcp && bun install
+HONCHO_API_URL=http://127.0.0.1:8000 bun run http
 ```
 
-When `HONCHO_API_URL` is unset the Worker routes to `https://api.honcho.dev`,
-so this change is backward-compatible.
+```bash
+bunx mcp-remote http://127.0.0.1:3000 \
+  --header "Authorization:Bearer <key>"
+```
+
+Auth is the `Authorization: Bearer` header (same as the Worker). Established
+sessions still require that same bearer. Optional `X-Honcho-Workspace-ID`
+fills `workspace_id` when the tool argument is omitted.
+
+`HOST` defaults to `0.0.0.0`, `PORT` to `3000`. `GET /health` is unauthenticated.
+MCP is served at `/` and `/mcp`. Idle sessions expire after
+`MCP_SESSION_IDLE_MS` (default 30 minutes); `MCP_SESSION_MAX` (default 128)
+caps concurrent sessions.
+
+A platform start command is `bun src/http.ts` (or `bun run http` from `mcp/`).
+This repo does not ship a `vercel.json`; serverless replicas do not share the
+in-memory session map.
+
+### Docker
+
+```bash
+docker build -f mcp/Dockerfile -t honcho-mcp mcp
+docker run --rm -p 3000:3000 \
+  -e HONCHO_API_URL=http://host.docker.internal:8000 \
+  honcho-mcp
+```
+
+`docker-compose.yml.example` includes an `mcp` service beside `api` and
+`deriver` (`HONCHO_API_URL=http://api:8000`, port `127.0.0.1:3000`).
+
+## Local stdio
+
+For a local Honcho instance, or any MCP client that spawns a process, run the
+stdio host. `--cwd` loads `mcp/bunfig.toml` (Markdown loader) from this package.
+
+```bash
+cd mcp && bun install
+
+claude mcp add honcho \
+  -e HONCHO_API_KEY=hch-your-key-here \
+  -e HONCHO_API_URL=http://127.0.0.1:28000 \
+  -e HONCHO_WORKSPACE_ID=my-workspace \
+  -- bun --cwd "$(pwd)" src/stdio.ts
+```
+
+`HONCHO_API_URL` defaults to `https://api.honcho.dev`. `HONCHO_WORKSPACE_ID` is
+optional; without it, pass `workspace_id` on each tool call.
 
 ## Development
 
@@ -123,6 +173,8 @@ bun run tsc --noEmit
 ```
 
 ### Test locally
+
+Worker (`bun dev`, port 8787) or HTTP host (`bun run http`, port 3000):
 
 ```bash
 bunx mcp-remote http://localhost:8787 \
