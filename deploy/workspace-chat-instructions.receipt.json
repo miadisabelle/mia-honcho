@@ -1,0 +1,51 @@
+{
+  "verified_at": "2026-10-22T23:34:01Z",
+  "feature": "Workspace-level chat instructions",
+  "tracking_issue": "https://github.com/miadisabelle/mia-honcho/issues/3",
+  "configuration_key": "configuration.chat.instructions",
+  "source_base_commit": "8d34a200",
+  "source_state": "working-tree changes on deploy/eury-8133",
+  "production": {
+    "service": "api",
+    "container": "mia-honcho-api-1",
+    "image": "sha256:83aafc453c27060b044c7f451c2311c89879c5adedd154768a719c5c891bfcb5",
+    "local_url": "http://127.0.0.1:8133",
+    "tailnet_url": "https://honcho.tail3b11eb.ts.net",
+    "local_health": "ok",
+    "tailnet_health": "ok",
+    "container_health": "healthy",
+    "existing_workspace_instructions_changed": false,
+    "activation": "Awaiting confirmation of the user's workspace ID",
+    "other_services_recreated": false
+  },
+  "rollback": {
+    "tag": "mia-honcho-api:before-workspace-chat-instructions",
+    "image": "sha256:891c7284a1415072164c231dc034062db65d359cec1768d9378bc21d1b879a55",
+    "commands": [
+      "docker tag mia-honcho-api:before-workspace-chat-instructions mia-honcho-api:latest",
+      "docker compose up -d --no-deps api"
+    ]
+  },
+  "checks": {
+    "focused_and_regression_python_tests": "242 passed",
+    "typescript_sdk": "Full suite and typecheck passed via pytest (2 wrapper tests); unrelated optional vector-store modules excluded from collection because lancedb/pyarrow/qdrant-client are not installed",
+    "basedpyright_changed_python_files": "0 errors, 0 warnings",
+    "ruff": "passed",
+    "openapi_drift_check": "passed",
+    "runtime_surfaces": ["CLI inspection", "Python SDK configuration roundtrip", "peer chat", "workspace streaming chat", "REST health and OpenAPI"],
+    "live_llm_context": "Temporary isolated workspace with no stored messages or conclusions; does not establish quality against the user's existing memories",
+    "exact_user_query_tested": true,
+    "creative_answer_started_with": "**Nom :** Orphée-9",
+    "creative_answer_announced_performance": false,
+    "factual_missing_memory_answer": "Je n’ai aucune information sur la couleur préférée de voice-probe dans les souvenirs enregistrés.",
+    "temporary_workspaces_deleted": true
+  },
+  "source_sha256": {
+    "src/dialectic/chat.py": "a1ccc63c4908e05ebe19fb6c156372fb3d3711d9b0c185dda8cc8187e50f9bd5",
+    "src/dialectic/core.py": "e7cae2b598bd09db0af239310a38e1886f47056e3d8d6a7f77c0cb60c472ca0c",
+    "src/dialectic/prompts.py": "860a35ce0c482bb05b0302da1ae733b9e968aee3e776b5d4ba3db451349ec108",
+    "src/dialectic/workspace.py": "c84c235837d5ce641f79288ce641e1f18b6469fd0e7567306f5fec4268bc70ff",
+    "src/schemas/configuration.py": "423d389f225f664563e015344b335feea87a0a965f85de6120ad55281833305c",
+    "src/utils/config_helpers.py": "1fce7ede0bc5355fdabf329aca35548e61891f6a486b575f27b61393d4fa73a4"
+  }
+}

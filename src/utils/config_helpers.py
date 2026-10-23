@@ -1,11 +1,13 @@
 """Configuration resolution utilities for hierarchical settings."""
 
 import logging
+from copy import deepcopy
 from typing import Any
 
 from src import models
 from src.config import settings
 from src.schemas import (
+    ChatConfiguration,
     MessageConfiguration,
     ResolvedConfiguration,
 )
@@ -28,7 +30,9 @@ def deep_update(base: dict[str, Any], update: dict[str, Any]) -> None:
         if nested is not None and existing is not None:
             deep_update(existing, nested)
         else:
-            base[key] = value
+            # Resolution must not mutate the source workspace/session JSON when
+            # later layers override nested keys introduced by an earlier layer.
+            base[key] = deepcopy(value)
 
 
 def normalize_configuration_dict(raw: dict[str, Any]) -> dict[str, Any]:
@@ -68,6 +72,12 @@ def normalize_configuration_dict(raw: dict[str, Any]) -> dict[str, Any]:
     normalized.pop("skip_deriver", None)
 
     return normalized
+
+
+def get_workspace_chat_instructions(workspace: models.Workspace) -> str | None:
+    """Read chat guidance only from the workspace, never session/message config."""
+    chat = ChatConfiguration.model_validate(workspace.configuration.get("chat") or {})
+    return chat.instructions
 
 
 def get_configuration(

@@ -4342,6 +4342,26 @@
         ],
         "title": "Body_create_messages_with_file_v3_workspaces__workspace_id__sessions__session_id__messages_upload_post"
       },
+      "ChatConfiguration": {
+        "properties": {
+          "instructions": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions",
+            "description": "System-level guidance for chat voice and creative expression. Applies to peer and workspace chat, including streaming. Does not change memory formation, factual grounding, or recall permissions."
+          }
+        },
+        "type": "object",
+        "title": "ChatConfiguration",
+        "description": "Workspace instructions for chat, separate from memory formation."
+      },
       "Conclusion": {
         "properties": {
           "id": {
@@ -5900,7 +5920,7 @@
         "additionalProperties": true,
         "type": "object",
         "title": "SessionConfiguration",
-        "description": "The set of options that can be in a session DB-level configuration dictionary.\n\nAll fields are optional. Session-level configuration overrides workspace-level configuration, which overrides global configuration."
+        "description": "Shared session/workspace options. Session values override workspace values."
       },
       "SessionContext": {
         "properties": {
@@ -6516,12 +6536,23 @@
               }
             ],
             "description": "Configuration for dream functionality. If reasoning is disabled, dreams will also be disabled and these settings will be ignored."
+          },
+          "chat": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChatConfiguration"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workspace-wide chat instructions; not overridden by sessions."
           }
         },
         "additionalProperties": true,
         "type": "object",
         "title": "WorkspaceConfiguration",
-        "description": "The set of options that can be in a workspace DB-level configuration dictionary.\n\nAll fields are optional. Session-level configuration overrides workspace-level configuration, which overrides global configuration."
+        "description": "Workspace configuration, including workspace-only chat instructions."
       },
       "WorkspaceCreate": {
         "properties": {

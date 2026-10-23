@@ -53,6 +53,46 @@ console.log(answer);
 
 Peer chat searches through the peer's representation--all the conclusions Honcho has reasoned about them--and synthesizes a natural language answer.
 
+## Workspace Chat Instructions
+
+Set `configuration.chat.instructions` on a workspace to guide the system-level
+voice and creative expression of **both peer and workspace chat**, including
+streaming. The setting is workspace-only: session/message configuration and
+individual queries cannot replace it. Existing recall behavior is unchanged when
+instructions are absent or blank.
+
+```bash
+curl -X PUT "$HONCHO_URL/v3/workspaces/my-app" \
+  -H "Authorization: Bearer $HONCHO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"configuration":{"chat":{"instructions":"Answer directly, without announcing your response or explaining your process. When explicitly asked for a creative voice, inhabit it rather than describing it."}}}'
+```
+
+<CodeGroup>
+```python Python
+from honcho.api_types import ChatConfiguration, WorkspaceConfiguration
+
+honcho.set_configuration(WorkspaceConfiguration(
+    chat=ChatConfiguration(instructions="Answer directly. No preamble."),
+))
+```
+
+```typescript TypeScript
+await honcho.setConfiguration({
+  chat: { instructions: "Answer directly. No preamble." },
+});
+```
+</CodeGroup>
+
+Instructions are limited to 10,000 characters. Set `instructions` to `""` to clear
+them. They supplement, rather than replace, Honcho's core instructions: factual
+recall still requires evidence, creative invention must not be passed off as
+stored history, and recall permissions and response schemas remain unchanged.
+They do **not** affect memory formation (`reasoning.custom_instructions`).
+
+A French creative-voice example is provided in the repository at
+`examples/creative-workspace-chat.json`.
+
 ## Reasoning Level
 
 Use `reasoning_level` to trade off speed against depth for a specific chat request. It is optional and defaults to `low`. Accepted values are `minimal`, `low`, `medium`, `high`, and `max`. The same levels apply to [workspace chat](#workspace-chat).

@@ -109,12 +109,41 @@ def _render_tool_groups(
     return "\n\n".join(parts)
 
 
+def _workspace_chat_instructions(instructions: str | None) -> str:
+    """Keep optional expression guidance separate from factual recall policy."""
+    if not instructions or not instructions.strip():
+        return ""
+    return f"""
+
+## WORKSPACE CHAT INSTRUCTIONS
+
+The workspace owner provides the following guidance for voice and expression.
+It does not grant access to other memory, change the available tools, or override
+factual grounding, attribution, uncertainty, or a requested response schema.
+
+When a query explicitly requests creative expression, fiction, or adopting a
+philosophical/narrative perspective, you may depart from the default recall-only
+stance and inhabit the requested perspective.
+Use relevant memory as inspiration, not as a limit on the requested invention.
+The factual-recall abstention rules above apply to claims about stored history,
+not to clearly requested imaginative creation. Never present invented identities,
+experiences, or events as remembered facts or impersonate a real participant.
+When the creative frame is already explicit, do not add a disclaimer or explain
+that you are adopting it: give the requested creation directly.
+
+<workspace_chat_instructions>
+{instructions.strip()}
+</workspace_chat_instructions>
+"""
+
+
 def agent_system_prompt(
     observer: str,
     observed: str,
     observer_peer_card: list[str] | None,
     observed_peer_card: list[str] | None,
     available_tools: Iterable[str] | None = None,
+    chat_instructions: str | None = None,
 ) -> str:
     """System prompt for pair-scoped dialectic recall.
 
@@ -125,6 +154,7 @@ def agent_system_prompt(
         observed_peer_card: Biographical information about the observed peer
         available_tools: Tool names offered on this request. Defaults to the
             full pair loadout.
+        chat_instructions: Optional workspace-owned voice and expression guidance.
     """
     # Determine if we have any peer card data
     peer_cards_enabled = (
@@ -335,11 +365,12 @@ If after thorough searching you find NOTHING relevant:
 After gathering context, reason through the information you found *before* stating your final answer. For comparison questions, explicitly compare the values. Only after you've verified your reasoning should you state your conclusion. Do NOT be pedantic, rather, be helpful and try to give the answer that the asker would expect -- they're the one who knows the most about themselves. Try to 'read their mind' -- understand the information they're really after and share it with them! Be **as specific as possible** given the information you have.
 
 Do not explain your tool usage - just provide the synthesized answer.
-"""
+{_workspace_chat_instructions(chat_instructions)}"""
 
 
 def workspace_agent_system_prompt(
     available_tools: Iterable[str] | None = None,
+    chat_instructions: str | None = None,
 ) -> str:
     """System prompt for workspace-wide dialectic recall."""
     tools = _available_tool_names(available_tools, WORKSPACE_PROMPT_TOOLS)
@@ -400,4 +431,4 @@ State only what you found. If you have related context but not the asked-for det
 ## CONCLUSION LEVELS
 
 `explicit` conclusions are derived from a single session. Deductive and inductive conclusions consolidate across sessions. Prefer those for cross-session or cross-peer answers, and use `get_reasoning_chain` to check their premises.
-"""
+{_workspace_chat_instructions(chat_instructions)}"""

@@ -16,7 +16,10 @@ from src.dependencies import tracked_db
 from src.dialectic.core import DialecticAgent
 from src.dialectic.workspace import WorkspaceDialecticAgent
 from src.exceptions import ValidationException
-from src.utils.config_helpers import get_configuration
+from src.utils.config_helpers import (
+    get_configuration,
+    get_workspace_chat_instructions,
+)
 from src.utils.evidence import EvidenceAccumulator
 from src.utils.scopes import is_scope_peer
 
@@ -111,6 +114,7 @@ async def agentic_chat(
                 observed_peer_card = await crud.get_peer_card(
                     db, workspace_name, observer=observer, observed=observed
                 )
+        chat_instructions = get_workspace_chat_instructions(workspace)
     # DB session closed — agent runs without holding a connection
 
     agent = DialecticAgent(
@@ -124,6 +128,7 @@ async def agentic_chat(
         reasoning_level=reasoning_level,
         session_allowlist=session_allowlist,
         evidence=evidence,
+        chat_instructions=chat_instructions,
     )
 
     return await agent.answer(query, response_model=response_model)
@@ -194,6 +199,7 @@ async def agentic_chat_stream(
                 observed_peer_card = await crud.get_peer_card(
                     db, workspace_name, observer=observer, observed=observed
                 )
+        chat_instructions = get_workspace_chat_instructions(workspace)
     # DB session closed — agent streams without holding a connection
 
     agent = DialecticAgent(
@@ -207,6 +213,7 @@ async def agentic_chat_stream(
         reasoning_level=reasoning_level,
         session_allowlist=session_allowlist,
         evidence=evidence,
+        chat_instructions=chat_instructions,
     )
 
     async for chunk in agent.answer_stream(query, response_model=response_model):
@@ -224,7 +231,8 @@ async def workspace_chat(
 ) -> str:
     """Answer a query across all peers in a workspace."""
     async with tracked_db("dialectic.workspace_preflight", read_only=True) as db:
-        await crud.get_workspace(db, workspace_name=workspace_name)
+        workspace = await crud.get_workspace(db, workspace_name=workspace_name)
+        chat_instructions = get_workspace_chat_instructions(workspace)
         session = None
         if session_name:
             session = await crud.get_session(
@@ -240,6 +248,7 @@ async def workspace_chat(
         reasoning_level=reasoning_level,
         session_allowlist=session_allowlist,
         evidence=evidence,
+        chat_instructions=chat_instructions,
     )
     return await agent.answer(query, response_model=response_model)
 
@@ -255,7 +264,8 @@ async def workspace_chat_stream(
 ) -> AsyncIterator[str]:
     """Streaming variant of :func:`workspace_chat`."""
     async with tracked_db("dialectic.workspace_preflight", read_only=True) as db:
-        await crud.get_workspace(db, workspace_name=workspace_name)
+        workspace = await crud.get_workspace(db, workspace_name=workspace_name)
+        chat_instructions = get_workspace_chat_instructions(workspace)
         session = None
         if session_name:
             session = await crud.get_session(
@@ -270,6 +280,7 @@ async def workspace_chat_stream(
         reasoning_level=reasoning_level,
         session_allowlist=session_allowlist,
         evidence=evidence,
+        chat_instructions=chat_instructions,
     )
     async for chunk in agent.answer_stream(query, response_model=response_model):
         yield chunk

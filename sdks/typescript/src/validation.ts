@@ -806,6 +806,7 @@ export type DreamConfigApi = {
  * API format for workspace configuration (snake_case).
  */
 export type WorkspaceConfigApi = {
+  chat?: { instructions?: string | null } | null
   reasoning?: ReasoningConfigApi | null
   peer_card?: PeerCardConfigApi | null
   summary?: SummaryConfigApi | null
@@ -813,9 +814,9 @@ export type WorkspaceConfigApi = {
 }
 
 /**
- * API format for session configuration (same as workspace).
+ * API format for session configuration (no workspace-only chat instructions).
  */
-export type SessionConfigApi = WorkspaceConfigApi
+export type SessionConfigApi = Omit<WorkspaceConfigApi, 'chat'>
 
 /**
  * API format for message configuration (snake_case).
@@ -966,6 +967,7 @@ export function workspaceConfigToApi(
 ): WorkspaceConfigApi | undefined {
   if (!config) return undefined
   return {
+    chat: config.chat,
     reasoning: reasoningConfigToApi(config.reasoning),
     peer_card: peerCardConfigToApi(config.peerCard),
     summary: summaryConfigToApi(config.summary),
@@ -982,6 +984,7 @@ export function workspaceConfigFromApi(
   if (!config) return undefined
   const apiConfig = config as WorkspaceConfigApi
   return {
+    chat: apiConfig.chat,
     reasoning: reasoningConfigFromApi(apiConfig.reasoning),
     peerCard: peerCardConfigFromApi(apiConfig.peer_card),
     summary: summaryConfigFromApi(apiConfig.summary),
@@ -1155,11 +1158,15 @@ export const MessageAdditionToApiSchema = MessageAdditionSchema.transform(
 export const WorkspaceMetadataSchema = z.record(z.string(), z.unknown())
 
 /**
- * Schema for workspace configuration.
- * Includes reasoning, peer card, summary, and dream settings.
+ * Schema for workspace configuration, including workspace-only chat guidance.
  */
 export const WorkspaceConfigSchema = z
   .object({
+    chat: z
+      .object({ instructions: z.string().max(10000).nullable().optional() })
+      .strict()
+      .nullable()
+      .optional(),
     reasoning: ReasoningConfigSchema.nullable().optional(),
     peerCard: PeerCardConfigSchema.nullable().optional(),
     summary: SummaryConfigSchema.nullable().optional(),

@@ -56,6 +56,7 @@ class WorkspaceDialecticAgent(DialecticAgent):
         session_id: str | None = None,
         session_allowlist: list[str] | None = None,
         evidence: EvidenceAccumulator | None = None,
+        chat_instructions: str | None = None,
     ) -> None:
         super().__init__(
             workspace_name=workspace_name,
@@ -67,6 +68,7 @@ class WorkspaceDialecticAgent(DialecticAgent):
             session_id=session_id,
             session_allowlist=session_allowlist,
             evidence=evidence,
+            chat_instructions=chat_instructions,
         )
         # Replace the pair-oriented system prompt with the workspace one.
         self.messages[0] = {
@@ -76,7 +78,8 @@ class WorkspaceDialecticAgent(DialecticAgent):
                     name
                     for tool in self._select_tools()
                     if isinstance((name := tool.get("name")), str)
-                }
+                },
+                chat_instructions=chat_instructions,
             ),
         }
 

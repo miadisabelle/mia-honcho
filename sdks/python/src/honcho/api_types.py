@@ -55,8 +55,16 @@ class DreamConfiguration(BaseModel):
     enabled: bool | None = None
 
 
-class WorkspaceConfiguration(BaseModel):
-    """Workspace-level configuration options."""
+class ChatConfiguration(BaseModel):
+    """Workspace-owned system guidance for chat voice and creative expression."""
+
+    model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
+
+    instructions: str | None = Field(default=None, max_length=10000)
+
+
+class SessionConfiguration(BaseModel):
+    """Session-level configuration options."""
 
     model_config = ConfigDict(extra="forbid")  # pyright: ignore[reportUnannotatedClassAttribute]
 
@@ -66,10 +74,10 @@ class WorkspaceConfiguration(BaseModel):
     dream: DreamConfiguration | None = None
 
 
-class SessionConfiguration(WorkspaceConfiguration):
-    """Session-level configuration options."""
+class WorkspaceConfiguration(SessionConfiguration):
+    """Workspace-level configuration options, including chat instructions."""
 
-    pass
+    chat: ChatConfiguration | None = None
 
 
 class WorkspaceConfigurationResponse(WorkspaceConfiguration):

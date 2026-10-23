@@ -66,6 +66,7 @@ from src.schemas.api import (
     WorkspaceUpdate,
 )
 from src.schemas.configuration import (
+    ChatConfiguration,
     DreamConfiguration,
     DreamType,
     MessageConfiguration,
@@ -98,6 +99,7 @@ from src.schemas.internal import (
 
 __all__ = [
     # configuration
+    "ChatConfiguration",
     "DreamConfiguration",
     "DreamType",
     "MessageConfiguration",

@@ -53,6 +53,18 @@ cost:
 Until one is chosen, treat every workspace on this instance as readable and
 writable by anything on the tailnet.
 
+## Workspace chat voice
+
+The API image now supports `configuration.chat.instructions` for both peer and
+workspace chat, including streaming. Existing workspaces are unchanged until
+configured. The French direct/creative-voice preset is in
+`examples/creative-workspace-chat.json`; apply it with
+`PUT /v3/workspaces/{workspace_id}` after confirming the workspace ID.
+
+Image, rollback tag, checks, and activation state are recorded in
+[`workspace-chat-instructions.receipt.json`](workspace-chat-instructions.receipt.json).
+No worker, database, Redis, MCP, or tailnet service restart was needed.
+
 ## Environment deltas from `.env.template`
 
 - `LLM_OPENAI_API_KEY` — set (deriver + dialectic + embeddings).
