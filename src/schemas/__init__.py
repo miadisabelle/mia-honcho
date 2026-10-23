@@ -15,6 +15,11 @@ from src.schemas.api import (
     DialecticResponse,
     DialecticStreamChunk,
     DialecticStreamDelta,
+    ErrorResponse,
+    Evidence,
+    EvidenceMessageRef,
+    EvidenceObservation,
+    EvidenceToolCall,
     Message,
     MessageBase,
     MessageBatchCreate,
@@ -39,6 +44,7 @@ from src.schemas.api import (
     Scope,
     ScopeCreate,
     ScopeSessionsAdd,
+    ScopeStatus,
     Session,
     SessionBase,
     SessionContext,
@@ -53,12 +59,14 @@ from src.schemas.api import (
     WebhookEndpointCreate,
     Workspace,
     WorkspaceBase,
+    WorkspaceChatOptions,
     WorkspaceCreate,
     WorkspaceGet,
     WorkspaceMessageSearchOptions,
     WorkspaceUpdate,
 )
 from src.schemas.configuration import (
+    ChatConfiguration,
     DreamConfiguration,
     DreamType,
     MessageConfiguration,
@@ -76,6 +84,7 @@ from src.schemas.configuration import (
     WorkspaceConfiguration,
 )
 from src.schemas.internal import (
+    DeriverMetrics,
     DocumentBase,
     DocumentCreate,
     DocumentMetadata,
@@ -90,6 +99,7 @@ from src.schemas.internal import (
 
 __all__ = [
     # configuration
+    "ChatConfiguration",
     "DreamConfiguration",
     "DreamType",
     "MessageConfiguration",
@@ -113,8 +123,14 @@ __all__ = [
     "ConclusionQuery",
     "DialecticOptions",
     "DialecticResponse",
+    "WorkspaceChatOptions",
     "DialecticStreamChunk",
+    "Evidence",
+    "EvidenceMessageRef",
+    "EvidenceObservation",
+    "EvidenceToolCall",
     "DialecticStreamDelta",
+    "ErrorResponse",
     "Message",
     "MessageBase",
     "MessageBatchCreate",
@@ -140,6 +156,7 @@ __all__ = [
     "Scope",
     "ScopeCreate",
     "ScopeSessionsAdd",
+    "ScopeStatus",
     "Session",
     "SessionBase",
     "SessionContext",
@@ -159,6 +176,7 @@ __all__ = [
     "WorkspaceMessageSearchOptions",
     "WorkspaceUpdate",
     # internal
+    "DeriverMetrics",
     "DocumentBase",
     "DocumentCreate",
     "DocumentMetadata",

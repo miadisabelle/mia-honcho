@@ -107,12 +107,22 @@ def _validate_custom_instructions_budget(
     return custom_instructions
 
 
-class WorkspaceConfiguration(BaseModel):
-    """
-    The set of options that can be in a workspace DB-level configuration dictionary.
+class ChatConfiguration(BaseModel):
+    """Workspace instructions for chat, separate from memory formation."""
 
-    All fields are optional. Session-level configuration overrides workspace-level configuration, which overrides global configuration.
-    """
+    instructions: str | None = Field(
+        default=None,
+        max_length=10000,
+        description=(
+            "System-level guidance for chat voice and creative expression. Applies "
+            "to peer and workspace chat, including streaming. Does not change "
+            "memory formation, factual grounding, or recall permissions."
+        ),
+    )
+
+
+class SessionConfiguration(BaseModel):
+    """Shared session/workspace options. Session values override workspace values."""
 
     model_config = ConfigDict(extra="allow")  # pyright: ignore
 
@@ -134,14 +144,13 @@ class WorkspaceConfiguration(BaseModel):
     )
 
 
-class SessionConfiguration(WorkspaceConfiguration):
-    """
-    The set of options that can be in a session DB-level configuration dictionary.
+class WorkspaceConfiguration(SessionConfiguration):
+    """Workspace configuration, including workspace-only chat instructions."""
 
-    All fields are optional. Session-level configuration overrides workspace-level configuration, which overrides global configuration.
-    """
-
-    pass
+    chat: ChatConfiguration | None = Field(
+        default=None,
+        description="Workspace-wide chat instructions; not overridden by sessions.",
+    )
 
 
 class MessageConfiguration(BaseModel):

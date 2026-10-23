@@ -13,7 +13,36 @@ import {
   MessageInputSchema,
   FileUploadSchema,
   RepresentationOptionsSchema,
+  SessionConfigSchema,
+  WorkspaceConfigSchema,
+  workspaceConfigFromApi,
+  workspaceConfigToApi,
 } from '../src/validation'
+
+describe('Workspace chat instructions', () => {
+  test('roundtrips through the API configuration', () => {
+    const config = WorkspaceConfigSchema.parse({
+      chat: { instructions: 'No preamble. Enter the requested voice.' },
+    })
+    const api = workspaceConfigToApi(config)
+    expect(api?.chat).toEqual(config.chat)
+    expect(workspaceConfigFromApi(api)?.chat).toEqual(config.chat)
+  })
+
+  test('accepts clearing instructions and rejects oversized guidance', () => {
+    expect(WorkspaceConfigSchema.parse({ chat: { instructions: '' } }).chat)
+      .toEqual({ instructions: '' })
+    expect(() => WorkspaceConfigSchema.parse({
+      chat: { instructions: 'x'.repeat(10001) },
+    })).toThrow(ZodError)
+  })
+
+  test('does not expose chat instructions as session configuration', () => {
+    expect(() => SessionConfigSchema.parse({
+      chat: { instructions: 'override' },
+    })).toThrow(ZodError)
+  })
+})
 
 // =============================================================================
 // ChatQuerySchema

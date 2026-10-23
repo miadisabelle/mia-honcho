@@ -5,7 +5,7 @@ import pytest
 from src import models
 from src.config import settings
 from src.schemas import MessageConfiguration, ReasoningConfiguration
-from src.utils.config_helpers import get_configuration
+from src.utils.config_helpers import get_configuration, get_workspace_chat_instructions
 
 
 def _workspace(configuration: dict[str, Any]) -> models.Workspace:
@@ -18,6 +18,16 @@ def _session(configuration: dict[str, Any]) -> models.Session:
         workspace_name="workspace",
         configuration=configuration,
     )
+
+
+def test_resolution_does_not_mutate_workspace_chat_instructions() -> None:
+    workspace = _workspace({"chat": {"instructions": "workspace voice"}})
+    session = _session({"chat": {"instructions": "session override"}})
+
+    get_configuration(None, session, workspace)
+
+    assert get_workspace_chat_instructions(workspace) == "workspace voice"
+    assert session.configuration["chat"]["instructions"] == "session override"
 
 
 def test_preserves_workspace_custom_instructions(
